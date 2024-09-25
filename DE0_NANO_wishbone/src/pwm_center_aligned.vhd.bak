@@ -1,0 +1,351 @@
+-------------------------------------------------------------------------------
+-- Title         : FLED Controller Top
+-- Project       : FLED Controller for PM driving
+-------------------------------------------------------------------------------
+-- File          : fled_ctrl_top.v
+-- Author        : Jaewoon LEE <jaewoon77.lee@lge.com>
+-- Created       : 20.02.2014
+-- Last modified : 20.02.2014
+-------------------------------------------------------------------------------
+-- Description   : 
+-- [note] pulse_width should be less than scan_period
+--
+-------------------------------------------------------------------------------
+-- Modification history :
+-- 20.02.2014 : created
+-------------------------------------------------------------------------------
+
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.std_logic_arith.all;
+use IEEE.std_logic_unsigned.all;
+--use work.pkg.all;
+
+--library work;
+--use work.utils_pack.all ;
+
+entity pwm_center_aligned is
+generic(
+	SYS_FREQ_Hz 	: positive := 100_000_000;
+	--PWM_FREQ_Hz	: positive := 100_000;
+	NB_CHANNEL : positive := 3
+	);
+port(
+	clk, rst_n : in std_logic ;
+	--sys_freq : in std_logic_vector(31 downto 0);
+	pwm_freq : in std_logic_vector(31 downto 0);
+	pwm_resol : in std_logic_vector(31 downto 0);
+	period : in slv16_array(0 to NB_CHANNEL-1);
+	deadtime : in std_logic_vector(15 downto 0);
+	pwm_p : out std_logic_vector(0 to NB_CHANNEL-1); 
+	pwm_n : out std_logic_vector(0 to NB_CHANNEL-1) 
+);
+end pwm_center_aligned;
+
+
+architecture struct of pwm_center_aligned is
+
+	signal clk_divide		: std_logic_vector(15 downto 0);
+	signal divider_counter : std_logic_vector(15 downto 0);
+	
+	signal updn_cnt			: std_logic_vector(15 downto 0);
+	signal updn_dir			: std_logic;
+	
+	signal PWM_upper_ch1	: std_logic;	
+	signal PWM_lower_ch1	: std_logic;
+	signal PWM_target_ch1	: std_logic;	
+	
+	signal PWM_upper_ch2	: std_logic;	
+	signal PWM_lower_ch2	: std_logic;
+	signal PWM_target_ch2	: std_logic;	
+	
+	signal PWM_upper_ch3	: std_logic;	
+	signal PWM_lower_ch3	: std_logic;
+	signal PWM_target_ch3	: std_logic;	
+	
+	signal PWM_upper_ref_ch1	: std_logic_vector(15 downto 0);	
+	signal PWM_lower_ref_ch1	: std_logic_vector(15 downto 0);
+	signal PWM_target_ref_ch1	: std_logic_vector(15 downto 0);	
+	
+	signal PWM_upper_ref_ch2	: std_logic_vector(15 downto 0);	
+	signal PWM_lower_ref_ch2	: std_logic_vector(15 downto 0);
+	signal PWM_target_ref_ch2	: std_logic_vector(15 downto 0);
+	
+	signal PWM_upper_ref_ch3	: std_logic_vector(15 downto 0);	
+	signal PWM_lower_ref_ch3	: std_logic_vector(15 downto 0);
+	signal PWM_target_ref_ch3	: std_logic_vector(15 downto 0);
+
+	signal PWM_target_reg_ch1_p		: std_logic;	
+	signal PWM_target_reg_ch1_n		: std_logic;
+	signal PWM_target_mask_ch1		: std_logic;
+	
+	signal PWM_target_reg_ch2_p		: std_logic;	
+	signal PWM_target_reg_ch2_n		: std_logic;
+	signal PWM_target_mask_ch2		: std_logic;
+	
+	signal PWM_target_reg_ch3_p		: std_logic;	
+	signal PWM_target_reg_ch3_n		: std_logic;
+	signal PWM_target_mask_ch3		: std_logic;
+	
+	signal PWM_out_reg_ch1_p		: std_logic;
+	signal PWM_out_reg_ch1_n		: std_logic;
+	
+	signal PWM_out_reg_ch2_p		: std_logic;
+	signal PWM_out_reg_ch2_n		: std_logic;
+	
+	signal PWM_out_reg_ch3_p		: std_logic;
+	signal PWM_out_reg_ch3_n		: std_logic;
+	
+begin
+
+	pwm_clk_gen : process (clk, rst_n)
+	begin
+		if rst_n = '0' then	
+			clk_divide <= (others => '1');
+			divider_counter <= (others => '0') ;
+		elsif clk'event and clk = '1' then
+		
+			clk_divide	<= std_logic_vector(to_unsigned(SYS_FREQ_Hz / to_integer(unsigned(pwm_freq)) /  to_integer(unsigned(pwm_resol))),16);
+		
+			if divider_counter = 0 then
+				divider_counter <= clk_divide ;
+			else
+				divider_counter <= divider_counter - 1 ;
+			end if ;
+		end if ;
+	end process ;
+
+	en_period_count <= '1' when divider_counter = 0 else
+						'0' ;
+
+	updown_cnt : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			updn_cnt <= (others => '1');
+			updn_dir <= '0';
+
+		elsif clk'event and clk = '1' then
+		
+			if en_period_count = '1' then
+				if updn_dir = '0' then
+					updn_cnt<= updn_cnt + 1;
+				else
+					updn_cnt<= updn_cnt - 1;
+				end if;
+				
+				if updn_cnt = X"0000" then
+				
+					updn_cnt <= X"0001";
+					updn_dir <= '0';
+				
+				elsif updn_cnt = X"FFFF" then
+				
+					updn_cnt <= X"FFFE";
+					updn_dir <= '1';
+				
+				end if;
+			end if ;
+				
+		end if;
+	end process ;
+
+	comprator_ch1 : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target_ch1 <= '0';
+			PWM_upper_ch1 <= '0';
+			PWM_lower_ch1 <= '0';
+			
+			PWM_target_ref_ch1 <= (others => '0');
+			
+		elsif clk'event and clk = '1' then
+		
+			PWM_target_ref_ch1 <= period(0);
+		
+			PWM_upper_ref_ch1	<= PWM_target_ref_ch1 + deadtime;
+			PWM_lower_ref_ch1	<= PWM_target_ref_ch1 - deadtime;
+			
+			if PWM_target_ref_ch1 <= updn_cnt then 
+				PWM_target_ch1 <= '0';
+			elsif PWM_target_ref_ch1 > updn_cnt  then
+				PWM_target_ch1 <= '1';
+			end if;
+			
+			if  PWM_upper_ref_ch1<= updn_cnt then
+				PWM_upper_ch1 <= '0';
+			elsif PWM_upper_ref_ch1 > updn_cnt  then
+				PWM_upper_ch1 <= '1';
+			end if;
+			
+			if PWM_lower_ref_ch1 <= updn_cnt then
+				PWM_lower_ch1 <= '0';
+			elsif PWM_lower_ref_ch1 > updn_cnt  then
+				PWM_lower_ch1 <= '1';
+			end if;
+		
+		end if;
+	end process ;
+	
+	comprator_ch2 : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target_ch2 <= '0';
+			PWM_upper_ch2 <= '0';
+			PWM_lower_ch2 <= '0';
+			
+			PWM_target_ref_ch2 <= (others => '0');
+			
+		elsif clk'event and clk = '1' then
+		
+			PWM_target_ref_ch2 <= period(1);
+		
+			PWM_upper_ref_ch2	<= PWM_target_ref_ch2 + deadtime;
+			PWM_lower_ref_ch2	<= PWM_target_ref_ch2 - deadtime;
+			
+			if PWM_target_ref_ch2 <= updn_cnt then 
+				PWM_target_ch2 <= '0';
+			elsif PWM_target_ref_ch2 > updn_cnt  then
+				PWM_target_ch2 <= '1';
+			end if;
+			
+			if  PWM_upper_ref_ch2<= updn_cnt then
+				PWM_upper_ch2 <= '0';
+			elsif PWM_upper_ref_ch2 > updn_cnt  then
+				PWM_upper_ch2 <= '1';
+			end if;
+			
+			if PWM_lower_ref_ch2 <= updn_cnt then
+				PWM_lower_ch2 <= '0';
+			elsif PWM_lower_ref_ch2 > updn_cnt  then
+				PWM_lower_ch2 <= '1';
+			end if;
+		
+		end if;
+	end process ;
+	
+	comprator_ch3 : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target_ch3 <= '0';
+			PWM_upper_ch3 <= '0';
+			PWM_lower_ch3 <= '0';
+			
+			PWM_target_ref_ch3 <= (others => '0');
+			
+		elsif clk'event and clk = '1' then
+		
+			PWM_target_ref_ch3 <= period(2);
+		
+			PWM_upper_ref_ch3	<= PWM_target_ref_ch3 + deadtime;
+			PWM_lower_ref_ch3	<= PWM_target_ref_ch3 - deadtime;
+			
+			if PWM_target_ref_ch3 <= updn_cnt then 
+				PWM_target_ch3 <= '0';
+			elsif PWM_target_ref_ch3 > updn_cnt  then
+				PWM_target_ch3 <= '1';
+			end if;
+			
+			if  PWM_upper_ref_ch3<= updn_cnt then
+				PWM_upper_ch3 <= '0';
+			elsif PWM_upper_ref_ch3 > updn_cnt  then
+				PWM_upper_ch3 <= '1';
+			end if;
+			
+			if PWM_lower_ref_ch3 <= updn_cnt then
+				PWM_lower_ch3 <= '0';
+			elsif PWM_lower_ref_ch3 > updn_cnt  then
+				PWM_lower_ch3 <= '1';
+			end if;
+		
+		end if;
+	end process ;
+	
+	
+	pwm_deadtime_mask : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target_mask_ch1 <= '0';
+			PWM_target_reg_ch1 <= '0';
+			
+			PWM_target_mask_ch2 <= '0';
+			PWM_target_reg_ch2 <= '0';
+			
+			PWM_target_mask_ch3 <= '0';
+			PWM_target_reg_ch3 <= '0';
+			
+		elsif clk'event and clk = '1' then
+		
+			PWM_target_mask_ch1 <= PWM_upper_ch1 xor PWM_lower_ch1;
+			PWM_target_reg_ch1_p <= PWM_target_ch1;
+			PWM_target_reg_ch1_n <= PWM_target_ch1;
+		
+			PWM_target_mask_ch2 <= PWM_upper_ch2 xor PWM_lower_ch2;
+			PWM_target_reg_ch2_p <= PWM_target_ch2;
+			PWM_target_reg_ch2_n <= PWM_target_ch2;
+			
+			PWM_target_mask_ch3 <= PWM_upper_ch3 xor PWM_lower_ch3;
+			PWM_target_reg_ch3_p <= PWM_target_ch3;
+			PWM_target_reg_ch3_n <= PWM_target_ch3;
+		end if;
+	end process ;
+
+	pwm_generator : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_out_reg_ch1_p <= '0';
+			PWM_out_reg_ch1_n <= '0';
+			
+			PWM_out_reg_ch2_p <= '0';
+			PWM_out_reg_ch2_n <= '0';
+			
+			PWM_out_reg_ch3_p <= '0';
+			PWM_out_reg_ch3_n <= '0';
+			
+		elsif clk'event and clk = '1' then
+		
+			PWM_out_reg_ch1_p <=  (not PWM_target_mask_ch1) and PWM_target_reg_ch1_p;
+			PWM_out_reg_ch1_n <=  (not PWM_target_mask_ch1) and PWM_target_reg_ch1_n;
+			
+			PWM_out_reg_ch2_p <=  (not PWM_target_mask_ch2) and PWM_target_reg_ch2_p;
+			PWM_out_reg_ch2_n <=  (not PWM_target_mask_ch2) and PWM_target_reg_ch2_n;
+			
+			PWM_out_reg_ch3_p <=  (not PWM_target_mask_ch3) and PWM_target_reg_ch3_p;
+			PWM_out_reg_ch3_n <=  (not PWM_target_mask_ch3) and PWM_target_reg_ch3_n;
+		
+		end if;
+		
+	end process ;
+	
+	pwm_out : process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+
+			LED <= "00000000";
+			
+		elsif clk'event and clk = '1' then
+		
+			LED(0) <= PWM_out_reg_ch1_p;
+			LED(1) <= PWM_out_reg_ch1_n;
+			
+			LED(2) <= PWM_out_reg_ch2_p;
+			LED(3) <= PWM_out_reg_ch2_n;
+			
+			LED(4) <= PWM_out_reg_ch3_p;
+			LED(5) <= PWM_out_reg_ch3_n;
+		
+		end if;
+		
+		
+
+		
+	end process ;
+	
+	
+end struct;
+

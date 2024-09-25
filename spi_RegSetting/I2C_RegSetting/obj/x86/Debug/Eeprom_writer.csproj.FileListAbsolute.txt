@@ -1,0 +1,14 @@
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.Properties.Resources.resources
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.csproj.GenerateResource.Cache
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.FormI2CComm.resources
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\bin\Debug\Eeprom_writer.exe
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\bin\Debug\Eeprom_writer.pdb
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\bin\Debug\FTD2XX_NET.dll
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\bin\Debug\FTD2XX_NET.xml
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.exe
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.pdb
+D:\git\uLEDwithTFTless\gui\Eeprom_writter\Eeprom_writer\obj\x86\Debug\Eeprom_writer.exe
+D:\git\uLEDwithTFTless\gui\Eeprom_writter\Eeprom_writer\obj\x86\Debug\Eeprom_writer.pdb
+D:\git\uLEDwithTFTless\gui\Eeprom_writer\Eeprom_writer\obj\x86\Debug\Eeprom_writer.csprojResolveAssemblyReference.cache
+D:\git\uLEDwithTFTless\gui\I2C_RegSetting\Eeprom_writer\obj\x86\Debug\Eeprom_writer.exe
+D:\git\uLEDwithTFTless\gui\I2C_RegSetting\Eeprom_writer\obj\x86\Debug\Eeprom_writer.pdb

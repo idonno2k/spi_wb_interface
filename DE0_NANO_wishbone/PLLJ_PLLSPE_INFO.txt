@@ -1,0 +1,10 @@
+PLL_Name	DVI_DEMO:u_video_src|vpg:vpg_inst|gen_pll:gen_pll_inst|altpll:altpll_component|gen_pll_altpll:auto_generated|pll1
+PLLJITTER	29
+PLLSPEmax	84
+PLLSPEmin	-53
+
+PLL_Name	pll_sys:u_pll_sys|altpll:altpll_component|pll_sys_altpll:auto_generated|pll1
+PLLJITTER	30
+PLLSPEmax	84
+PLLSPEmin	-53
+

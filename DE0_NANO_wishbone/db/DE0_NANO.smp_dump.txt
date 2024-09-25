@@ -1,0 +1,12 @@
+
+State Machine - |DE0_NANO_TOP|DVI_DEMO:u_video_src|vpg:vpg_inst|config_state
+Name config_state.0111 config_state.0110 config_state.0101 config_state.0100 config_state.0011 config_state.0010 config_state.0000 config_state.0001 config_state.1000 
+config_state.0001 0 0 0 0 0 0 0 0 0 
+config_state.0000 0 0 0 0 0 0 1 1 0 
+config_state.0010 0 0 0 0 0 1 0 1 0 
+config_state.0011 0 0 0 0 1 0 0 1 0 
+config_state.0100 0 0 0 1 0 0 0 1 0 
+config_state.0101 0 0 1 0 0 0 0 1 0 
+config_state.0110 0 1 0 0 0 0 0 1 0 
+config_state.0111 1 0 0 0 0 0 0 1 0 
+config_state.1000 0 0 0 0 0 0 0 1 1 

@@ -1,0 +1,268 @@
+-------------------------------------------------------------------------------
+-- Title         : FLED Controller Top
+-- Project       : FLED Controller for PM driving
+-------------------------------------------------------------------------------
+-- File          : fled_ctrl_top.v
+-- Author        : Jaewoon LEE <jaewoon77.lee@lge.com>
+-- Created       : 20.02.2014
+-- Last modified : 20.02.2014
+-------------------------------------------------------------------------------
+-- Description   : 
+-- [note] pulse_width should be less than scan_period
+--
+-------------------------------------------------------------------------------
+-- Modification history :
+-- 20.02.2014 : created
+-------------------------------------------------------------------------------
+
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.std_logic_arith.all;
+use IEEE.std_logic_unsigned.all;
+--use work.pkg.all;
+
+--library work;
+--use work.utils_pack.all ;
+
+entity DE0_NANO_TOP is
+	port (
+
+	------------ CLOCK ------------
+	CLOCK_50			: in	std_logic;
+
+	------------ LED ------------
+	LED				: out	std_logic_vector( 7 downto 0);
+
+	------------ KEY ------------
+	KEY				: in	std_logic_vector( 1 downto 0);
+
+	------------ SW ------------
+	SW					: in	std_logic_vector( 3 downto 0);
+	------------ SDRAM ------------
+	DRAM_ADDR		: out	std_logic_vector( 12 downto 0);
+	DRAM_BA			: out	std_logic_vector( 1 downto 0);
+	DRAM_CAS_N		: out	std_logic;
+	DRAM_CKE			: out	std_logic;
+	DRAM_CLK			: out	std_logic;
+	DRAM_CS_N		: out	std_logic;
+	DRAM_DQ			: inout	std_logic_vector( 15 downto 0);
+	DRAM_DQM			: out	std_logic_vector( 1 downto 0);
+	DRAM_RAS_N		: out	std_logic;
+	DRAM_WE_N		: out	std_logic;
+
+	------------ EPCS ------------
+	EPCS_ASDO		: out	std_logic;
+	EPCS_DATA0		: in	std_logic;
+	EPCS_DCLK		: out	std_logic;
+	EPCS_NCSO		: out	std_logic;
+
+	------------ Accelerometer and EEPROM ------------
+	G_SENSOR_CS_N	: out	std_logic;
+	G_SENSOR_INT	: in	std_logic;
+	I2C_SCLK			: out	std_logic;
+	I2C_SDAT			: in	std_logic;
+
+	------------ ADC ------------
+	ADC_CS_N			: out	std_logic;
+	ADC_SADDR		: out	std_logic;
+	ADC_SCLK			: out	std_logic;
+	ADC_SDAT			: in	std_logic;
+
+	------------ 2x13 GPIO Header ------------
+	GPIO_2			: inout	std_logic_vector( 12 downto 0);
+	GPIO_2_IN		: in	std_logic_vector( 2 downto 0);
+
+	------------ GPIO_0, GPIO_0 connect to GPIO Default ------------
+	GPIOA				: inout	std_logic_vector( 33 downto 0);
+	GPIOA_IN    	: in	std_logic_vector( 1 downto 0);
+
+	------------ GPIO_1, GPIO_1 connect to GPIO Default ------------
+	GPIOB			 	: inout	std_logic_vector( 33 downto 0);
+	GPIOB_IN       : in	std_logic_vector( 1 downto 0)
+		
+		
+
+	);
+end DE0_NANO_TOP;
+
+
+architecture struct of DE0_NANO_TOP is
+
+	component pll_sys		-- MAX : 4 clk out c0~c3
+	port (
+		inclk0				: IN  STD_LOGIC  := '0';
+		c0					: OUT STD_LOGIC ;
+		c1					: OUT STD_LOGIC ;
+		c2					: OUT STD_LOGIC ;
+		c3					: OUT STD_LOGIC ;
+		locked				: OUT STD_LOGIC 
+	);
+	end component;
+	
+
+
+	constant DEADTIME			: std_logic_vector		:= X"000F";	
+	
+	-- clk
+	signal rst_n				: std_logic;
+	signal clk_50M_in				: std_logic;
+	signal clk_50M				: std_logic;
+	signal clk_pix				: std_logic;
+	signal clk_pix_dly			: std_logic;
+	signal clk_sys				: std_logic;	
+
+	signal updn_cnt			: std_logic_vector(15 downto 0);
+	signal updn_dir			: std_logic;
+	
+	signal PWM_upper				: std_logic;	
+	signal PWM_lower				: std_logic;
+	signal PWM_target				: std_logic;	
+	
+	signal PWM_upper_ref			: std_logic_vector(15 downto 0);	
+	signal PWM_lower_ref			: std_logic_vector(15 downto 0);
+	signal PWM_target_ref		: std_logic_vector(15 downto 0);	
+
+	signal PWM_target_reg		: std_logic;	
+	signal PWM_target_mask		: std_logic;
+	
+	signal PWM_out_reg		: std_logic;
+	
+begin
+
+	rst_n <= KEY(0);
+	clk_50M_in <= CLOCK_50;
+	
+	u_pll_sys : pll_sys	
+	port map (
+		inclk0			=> clk_50M_in,
+		c0					=> clk_50M,		-- 50MHz
+		c1					=> clk_pix,		-- 100MHz
+		c2					=> clk_sys,		-- 200MHz
+		c3					=> clk_pix_dly,	-- 100MHz 180deg_dly
+		locked				=> open
+	);
+	
+	
+	updown_cnt : process (clk_50M, rst_n)
+	begin
+		if rst_n = '0' then
+
+			updn_cnt <= (others => '1');
+			updn_dir <= '0';
+
+		elsif clk_50M'event and clk_50M = '1' then
+		
+			if updn_dir = '0' then
+				updn_cnt<= updn_cnt + 1;
+			else
+				updn_cnt<= updn_cnt - 1;
+			end if;
+			
+			if updn_cnt = X"0000" then
+			
+				updn_cnt <= X"0001";
+				updn_dir <= '0';
+			
+			elsif updn_cnt = X"FFFF" then
+			
+				updn_cnt <= X"FFFE";
+				updn_dir <= '1';
+			
+			end if;
+		
+		end if;
+	end process ;
+
+
+	comprator : process (clk_50M, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target <= '0';
+			PWM_upper <= '0';
+         PWM_lower <= '0';
+			
+			PWM_target_ref <= X"8FFF";
+			
+		elsif clk_50M'event and clk_50M = '1' then
+		
+			PWM_upper_ref	<= PWM_target_ref+DEADTIME;
+			PWM_lower_ref	<= PWM_target_ref-DEADTIME;
+			
+			if PWM_target_ref <= updn_cnt then 
+				PWM_target <= '0';
+			elsif PWM_target_ref > updn_cnt  then
+				PWM_target <= '1';
+			end if;
+			
+			if  PWM_upper_ref<= updn_cnt then
+				PWM_upper <= '0';
+			elsif PWM_upper_ref > updn_cnt  then
+				PWM_upper <= '1';
+			end if;
+			
+			if PWM_lower_ref <= updn_cnt then
+				PWM_lower <= '0';
+			elsif PWM_lower_ref > updn_cnt  then
+				PWM_lower <= '1';
+			end if;
+		
+		end if;
+	end process ;
+
+	
+	pwm_deadtime_mask : process (clk_50M, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_target_mask <= '0';
+			PWM_target_reg <= '0';
+			
+		elsif clk_50M'event and clk_50M = '1' then
+		
+			PWM_target_mask <= PWM_upper xor PWM_lower;
+			PWM_target_reg <= PWM_target;
+		
+		end if;
+	end process ;
+
+	pwm_generator : process (clk_50M, rst_n)
+	begin
+		if rst_n = '0' then
+
+			PWM_out_reg <= '0';
+			
+		elsif clk_50M'event and clk_50M = '1' then
+		
+			PWM_out_reg <=  (not PWM_target_mask) and PWM_target;
+		
+		end if;
+		
+	end process ;
+	
+	signal_out : process (clk_50M, rst_n)
+	begin
+		if rst_n = '0' then
+
+			LED <= "00000000";
+			
+		elsif clk_50M'event and clk_50M = '1' then
+		
+			LED(0) <= PWM_out_reg;
+			LED(1) <= PWM_target;
+			LED(2) <= PWM_upper;
+			LED(3) <= PWM_lower;
+			
+			LED(4) <= PWM_target_mask;
+			LED(5) <= PWM_target;
+		
+		end if;
+		
+		
+
+		
+	end process ;
+	
+	
+end struct;
+
